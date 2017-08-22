@@ -18,8 +18,8 @@ import (
 const (
 	// Hue docs say to use "IpBridge" over "hue-bridgeid"
 	_SSDPIdentifier    = "IpBridge"
-	_DefaultBufferSize = 256
-	_DefaultTimeout    = 30 * time.Second
+	_DefaultBufferSize = 1500
+	_DefaultTimeout    = 10 * time.Second
 	_DefaultNumBridges = 8
 )
 
