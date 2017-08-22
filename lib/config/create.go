@@ -5,7 +5,7 @@ type CreateUser struct {
 }
 
 // CreateResult struct
-type CreateResult struct {
+type CreateUserResult struct {
 	Success struct {
 		Username string `json:"username"`
 	} `json:"success"`

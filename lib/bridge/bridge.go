@@ -2,9 +2,17 @@ package bridge
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/errwrap"
+	"github.com/papertigers/hue/lib/config"
 )
 
 const (
@@ -79,4 +87,55 @@ func Discover() ([]string, error) {
 // Bridge represents a Hue Bridge
 type Bridge struct {
 	IP string
+}
+
+func (b *Bridge) CreateUser() (*config.CreateUserResult, error) {
+	payload := &config.CreateUser{
+		DeviceType: "gohue#papertigers",
+	}
+	return b.CreateUserWithName(payload)
+}
+
+func (b *Bridge) CreateUserWithName(payload *config.CreateUser) (*config.CreateUserResult, error) {
+	client := &http.Client{
+		Timeout: time.Second * 5,
+	}
+
+	method := http.MethodPost
+	path := fmt.Sprintf("http://%s/api", b.IP)
+
+	var bodyReq io.ReadSeeker
+	marshaled, err := json.MarshalIndent(payload, "", "    ")
+	if err != nil {
+		return nil, err
+	}
+	bodyReq = bytes.NewReader(marshaled)
+
+	if err != nil {
+		return nil, errwrap.Wrapf("Error creating POST request: {{err}}", err)
+	}
+
+	req, err := http.NewRequest(method, path, bodyReq)
+	if err != nil {
+		return nil, errwrap.Wrapf("Error constructing HTTP request: {{err}}", err)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, errwrap.Wrapf("Error executing HTTP request: {{err}}", err)
+	}
+
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, errwrap.Wrapf("Error reading HTTP body: {{err}}", err)
+	}
+
+	var results []config.CreateUserResult
+	err = json.Unmarshal(body, &results)
+	if err != nil {
+		return nil, errwrap.Wrapf("Error unmarshaling CreateUserResult: {{err}}", err)
+	}
+
+	return &results[0], nil
 }
