@@ -19,8 +19,6 @@ const (
 	// Hue docs say to use "IpBridge" over "hue-bridgeid"
 	_SSDPIdentifier    = "IpBridge"
 	_DefaultBufferSize = 1500
-	_DefaultTimeout    = 10 * time.Second
-	_DefaultNumBridges = 8
 )
 
 var _SSDPData = []string{
@@ -33,8 +31,9 @@ var _SSDPData = []string{
 
 // Discover Hue bridges via SSDP.
 // Returns a map of IP.String() to empty struct.
-func Discover() ([]string, error) {
-	bridgeSet := make([]string, 0, _DefaultNumBridges)
+func Discover(t int) (map[string]struct{}, error) {
+	timeout := time.Duration(t) * time.Second
+	bridgeSet := make(map[string]struct{})
 
 	rAddr, err := net.ResolveUDPAddr("udp4", "239.255.255.250:1900")
 	if err != nil {
@@ -59,13 +58,11 @@ func Discover() ([]string, error) {
 	}
 
 	// Read responses back for short time period
-	lAddr.SetReadDeadline(time.Now().Add(_DefaultTimeout))
-	var buf bytes.Buffer
-	buf.Grow(_DefaultBufferSize)
+	lAddr.SetReadDeadline(time.Now().Add(timeout))
+	buf := make([]byte, _DefaultBufferSize)
 
 	for {
-		buf.Reset()
-		n, addr, err := lAddr.ReadFromUDP(buf.Bytes())
+		n, addr, err := lAddr.ReadFromUDP(buf)
 		if err != nil {
 			switch osErr := err.(*net.OpError); {
 			case osErr.Timeout():
@@ -78,8 +75,8 @@ func Discover() ([]string, error) {
 				return bridgeSet, err
 			}
 		}
-		if bytes.Contains(buf.Bytes()[:n], []byte(_SSDPIdentifier)) {
-			bridgeSet = append(bridgeSet, addr.IP.String())
+		if bytes.Contains(buf[:n], []byte(_SSDPIdentifier)) {
+			bridgeSet[addr.IP.String()] = struct{}{}
 		}
 	}
 }
@@ -133,9 +130,9 @@ func (b *Bridge) CreateUserWithName(payload *config.CreateUser) (*config.CreateU
 
 	var results []config.CreateUserResult
 	err = json.Unmarshal(body, &results)
+	fmt.Printf("%v\n", string(body))
 	if err != nil {
 		return nil, errwrap.Wrapf("Error unmarshaling CreateUserResult: {{err}}", err)
 	}
-
 	return &results[0], nil
 }
